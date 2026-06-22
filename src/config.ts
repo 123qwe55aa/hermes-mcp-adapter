@@ -1,6 +1,48 @@
+import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type HermesMode = "local" | "http";
+
+function projectRootFromModule(): string {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const moduleBase = path.basename(moduleDir);
+  if (moduleBase === "src" || moduleBase === "dist") {
+    return path.dirname(moduleDir);
+  }
+  return process.cwd();
+}
+
+function parseDotEnvValue(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function loadDotEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    const [, key, rawValue] = match;
+    if (process.env[key] === undefined) {
+      process.env[key] = parseDotEnvValue(rawValue);
+    }
+  }
+}
+
+loadDotEnvFile(path.join(projectRootFromModule(), ".env"));
 
 function intFromEnv(name: string, fallback: number): number {
   const value = process.env[name];
@@ -29,18 +71,9 @@ export const config = {
   hermesMode: (process.env.HERMES_MODE === "http" ? "http" : "local") as HermesMode,
   transport: (process.env.TRANSPORT ?? "stdio") as "stdio" | "http",
   httpPort: intFromEnv("HTTP_PORT", 3000),
-  commandAllowlist: listFromEnv("COMMAND_ALLOWLIST", [
-    "ls",
-    "pwd",
-    "cat",
-    "grep",
-    "rg",
-    "git",
-    "npm",
-    "pnpm",
-    "node",
-    "python3"
-  ]),
+  commandAllowlist: listFromEnv("COMMAND_ALLOWLIST", ["ls", "pwd", "rg", "git", "npm"]),
+  npmScriptAllowlist: listFromEnv("NPM_SCRIPT_ALLOWLIST", ["test", "typecheck", "build", "lint"]),
   commandTimeoutMs: intFromEnv("COMMAND_TIMEOUT_MS", 20_000),
-  maxFileBytes: intFromEnv("MAX_FILE_BYTES", 256 * 1024)
+  maxFileBytes: intFromEnv("MAX_FILE_BYTES", 256 * 1024),
+  hermesHttpTimeoutMs: intFromEnv("HERMES_HTTP_TIMEOUT_MS", 10_000),
 };
