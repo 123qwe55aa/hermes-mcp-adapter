@@ -74,6 +74,16 @@ export async function runHttpServer(server: McpServer): Promise<void> {
         }
       }
 
+      // Log request details for debugging
+      const sessionHeader = req.headers["mcp-session-id"] || "";
+      audit("mcp_request", {
+        method: req.method,
+        hasSession: !!sessionHeader,
+        sessionPrefix: sessionHeader ? sessionHeader.toString().substring(0, 8) : "",
+        contentType: req.headers["content-type"] || "",
+        accept: req.headers["accept"] || "",
+      });
+
       try {
         await transport.handleRequest(req, res);
       } catch (error) {
