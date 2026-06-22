@@ -8,7 +8,7 @@ import { hermesClient } from "./hermes/client.js";
 import { runHttpServer } from "./server.js";
 import { listDir as listDirLocal, readFile as readFileLocal } from "./local/fs.js";
 import { runCommand as runCommandLocal } from "./local/shell.js";
-import { assertSafeCommand, audit, resolveWorkspacePath } from "./sandbox.js";
+import { assertSafeCommand, audit, resolveExistingWorkspacePath } from "./sandbox.js";
 
 function asText(value: unknown, isError = false) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -121,11 +121,11 @@ server.registerTool(
   async ({ command, cwd }) =>
     callTool("run_command", async () => {
       const safeCommand = assertSafeCommand(command);
-      resolveWorkspacePath(cwd);
+      const resolvedCwd = await resolveExistingWorkspacePath(cwd);
       if (config.hermesMode === "http") {
-        return hermesClient.runCommand(safeCommand.command, cwd);
+        return hermesClient.runCommand(safeCommand.command, resolvedCwd);
       }
-      return runCommandLocal(safeCommand.command, cwd);
+      return runCommandLocal(safeCommand.command, resolvedCwd);
     })
 );
 

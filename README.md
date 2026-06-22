@@ -68,6 +68,9 @@ WORKSPACE_ROOT=/Users/toby/Documents/Projects
 HERMES_BASE_URL=http://127.0.0.1:9119
 HERMES_HTTP_TIMEOUT_MS=10000
 HERMES_MODE=local
+TRANSPORT=stdio
+HTTP_PORT=3000
+MCP_AUTH_TOKEN=
 COMMAND_ALLOWLIST=ls,pwd,rg,git,npm
 NPM_SCRIPT_ALLOWLIST=test,typecheck,build,lint
 COMMAND_TIMEOUT_MS=20000
@@ -77,6 +80,35 @@ MAX_FILE_BYTES=262144
 `HERMES_MODE=local` runs filesystem and command tools directly from the adapter.
 
 `HERMES_MODE=http` validates the command and workspace-relative `cwd` locally, then forwards tool calls to Hermes HTTP endpoints. The default endpoint mapping is documented in `src/hermes/client.ts`; adjust it to match your Hermes runtime if needed.
+
+## HTTP transport (experimental)
+
+Set `TRANSPORT=http` to start an HTTP server for MCP instead of stdio:
+
+```bash
+TRANSPORT=http HTTP_PORT=3000 npm run build && npm run start:http
+```
+
+The server listens on port `HTTP_PORT` (default 3000) and exposes the MCP protocol at `http://127.0.0.1:3000/mcp`.
+
+When `MCP_AUTH_TOKEN` is set, all `/mcp` requests must include `Authorization: Bearer <token>`. This is strongly recommended before exposing the server to a network or Cloudflare Tunnel.
+
+> **Security:** The HTTP transport is experimental and has no TLS, rate limits, or IP allowlist. Do not expose it directly to the public internet without a reverse proxy (Cloudflare Tunnel with access rules, nginx with auth, etc.) in front of it.
+
+### MCP client config (HTTP mode)
+
+```json
+{
+  "mcpServers": {
+    "hermes-mcp-adapter": {
+      "url": "http://127.0.0.1:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer your-secret-token"
+      }
+    }
+  }
+}
+```
 
 ## Command policy
 
