@@ -27,6 +27,8 @@ export const config = {
   workspaceRoot,
   hermesBaseUrl: process.env.HERMES_BASE_URL ?? "http://127.0.0.1:9119",
   hermesMode: (process.env.HERMES_MODE === "http" ? "http" : "local") as HermesMode,
+  transport: (process.env.TRANSPORT ?? "stdio") as "stdio" | "http",
+  httpPort: intFromEnv("HTTP_PORT", 3000),
   commandAllowlist: listFromEnv("COMMAND_ALLOWLIST", [
     "ls",
     "pwd",

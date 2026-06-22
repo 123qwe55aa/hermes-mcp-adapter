@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { config } from "./config.js";
 import { hermesClient } from "./hermes/client.js";
+import { runHttpServer } from "./server.js";
 import { listDir as listDirLocal, readFile as readFileLocal } from "./local/fs.js";
 import { runCommand as runCommandLocal } from "./local/shell.js";
 import { audit, resolveWorkspacePath } from "./sandbox.js";
@@ -54,6 +55,7 @@ server.registerTool(
           ok: true,
           adapter: config.name,
           mode: config.hermesMode,
+          transport: config.transport,
           workspaceRoot: config.workspaceRoot,
           hermes
         };
@@ -63,6 +65,7 @@ server.registerTool(
         ok: true,
         adapter: config.name,
         mode: config.hermesMode,
+        transport: config.transport,
         workspaceRoot: config.workspaceRoot
       };
     })
@@ -124,5 +127,9 @@ server.registerTool(
     })
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+if (config.transport === "http") {
+  runHttpServer(server);
+} else {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
