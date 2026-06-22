@@ -72,6 +72,7 @@ export const config = {
   transport: (process.env.TRANSPORT ?? "stdio") as "stdio" | "http",
   httpPort: intFromEnv("HTTP_PORT", 3000),
   httpHost: process.env.HTTP_HOST ?? "127.0.0.1",
+  allowedOrigin: process.env.ALLOWED_ORIGIN ?? "",
   mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   commandAllowlist: listFromEnv("COMMAND_ALLOWLIST", ["ls", "pwd", "rg", "git", "npm"]),
   npmScriptAllowlist: listFromEnv("NPM_SCRIPT_ALLOWLIST", ["test", "typecheck", "build", "lint"]),

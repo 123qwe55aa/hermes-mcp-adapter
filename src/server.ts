@@ -2,17 +2,21 @@ import http from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config } from "./config.js";
-import { audit } from "./sandbox.js";
+import { audit, isLocalHttpHost } from "./sandbox.js";
 
 export async function runHttpServer(server: McpServer): Promise<void> {
   // Enforce auth when binding to a non-local address
-  const isLocalHost =
-    config.httpHost === "127.0.0.1" ||
-    config.httpHost === "localhost" ||
-    config.httpHost === "::1";
-  if (!isLocalHost && !config.mcpAuthToken) {
+  if (!isLocalHttpHost(config.httpHost) && !config.mcpAuthToken) {
     throw new Error(
       `MCP_AUTH_TOKEN is required when HTTP_HOST is not localhost (current: ${config.httpHost})`
+    );
+  }
+
+  // Enforce CORS origin restriction when binding to a non-local address
+  if (!isLocalHttpHost(config.httpHost) && !config.allowedOrigin) {
+    throw new Error(
+      `ALLOWED_ORIGIN is required when HTTP_HOST is not localhost (current: ${config.httpHost}). ` +
+      `Set ALLOWED_ORIGIN to a specific origin (e.g., http://127.0.0.1:3000) or '*' to allow all origins.`
     );
   }
 
@@ -26,7 +30,8 @@ export async function runHttpServer(server: McpServer): Promise<void> {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     // CORS headers for MCP client
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    const corsOrigin = config.allowedOrigin || "*";
+    res.setHeader("Access-Control-Allow-Origin", corsOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, MCP-Version, Session-Id");
 

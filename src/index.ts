@@ -8,13 +8,21 @@ import { hermesClient } from "./hermes/client.js";
 import { runHttpServer } from "./server.js";
 import { listDir as listDirLocal, readFile as readFileLocal } from "./local/fs.js";
 import { runCommand as runCommandLocal } from "./local/shell.js";
-import { assertSafeCommand, audit, resolveExistingWorkspacePath } from "./sandbox.js";
+import { assertSafeCommand, audit, isLocalHttpHost, resolveExistingWorkspacePath } from "./sandbox.js";
 
 // Fail-closed gate: HTTP transport must either bind localhost or have an auth token.
-if (config.transport === "http" && !config.mcpAuthToken && config.httpHost !== "127.0.0.1") {
+if (config.transport === "http" && !config.mcpAuthToken && !isLocalHttpHost(config.httpHost)) {
   throw new Error(
     "MCP_AUTH_TOKEN is required when TRANSPORT=http and HTTP_HOST is not 127.0.0.1. " +
     "Set MCP_AUTH_TOKEN to a secret token, or set HTTP_HOST=127.0.0.1 for local-only access."
+  );
+}
+
+// Fail-closed gate: HTTP transport on non-localhost must have an explicit CORS origin.
+if (config.transport === "http" && !config.allowedOrigin && !isLocalHttpHost(config.httpHost)) {
+  throw new Error(
+    "ALLOWED_ORIGIN is required when TRANSPORT=http and HTTP_HOST is not 127.0.0.1. " +
+    "Set ALLOWED_ORIGIN to a specific origin (e.g., http://127.0.0.1:3000) or set HTTP_HOST=127.0.0.1 for local-only access."
   );
 }
 

@@ -72,7 +72,8 @@ TRANSPORT=stdio
 HTTP_PORT=3000
 HTTP_HOST=127.0.0.1
 MCP_AUTH_TOKEN=
-COMMAND_ALLOWLIST=ls,pwd,rg,git,npm
+ALLOWED_ORIGIN=
+COMM...``
 NPM_SCRIPT_ALLOWLIST=test,typecheck,build,lint
 COMMAND_TIMEOUT_MS=20000
 MAX_FILE_BYTES=262144
@@ -92,7 +93,7 @@ TRANSPORT=http HTTP_PORT=3000 npm run build && npm run start:http
 
 The server exposes the MCP protocol at `http://{HTTP_HOST}:{HTTP_PORT}/mcp`.
 
-When `HTTP_HOST` is not `127.0.0.1` (e.g. `0.0.0.0` or a LAN IP), a `MCP_AUTH_TOKEN` is **required** at startup — the adapter will refuse to start without one. MCP clients must then include `Authorization: Bearer *** on every `/mcp` request.
+When `HTTP_HOST` is not `127.0.0.1` (e.g. `0.0.0.0` or a LAN IP), a `MCP_AUTH_TOKEN` is **required** at startup — the adapter will refuse to start without one. MCP clients must then include `Authorization: Bearer <token>` on every `/mcp` request.
 
 ```bash
 MCP_AUTH_TOKEN=$(openssl rand -hex 32) HTTP_HOST=0.0.0.0 TRANSPORT=http npm run start:http

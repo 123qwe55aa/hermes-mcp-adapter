@@ -125,6 +125,10 @@ export async function resolveExistingWorkspacePath(inputPath: string): Promise<s
   return resolvedRealPath;
 }
 
+export function isLocalHttpHost(host: string): boolean {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
 export function assertSafeCommand(command: string): SafeCommand {
   if (blockedCommandPatterns.some((pattern) => pattern.test(command))) {
     throw new Error(`Command blocked by sandbox policy: ${command}`);

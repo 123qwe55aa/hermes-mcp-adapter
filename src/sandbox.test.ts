@@ -95,3 +95,23 @@ test("blocks shell cwd symlink escape", async () => {
     /escapes workspace/
   );
 });
+
+test("isLocalHttpHost returns true for 127.0.0.1", () => {
+  assert.equal(sandbox.isLocalHttpHost("127.0.0.1"), true);
+});
+
+test("isLocalHttpHost returns true for localhost", () => {
+  assert.equal(sandbox.isLocalHttpHost("localhost"), true);
+});
+
+test("isLocalHttpHost returns true for ::1", () => {
+  assert.equal(sandbox.isLocalHttpHost("::1"), true);
+});
+
+test("isLocalHttpHost returns false for 0.0.0.0", () => {
+  assert.equal(sandbox.isLocalHttpHost("0.0.0.0"), false);
+});
+
+test("isLocalHttpHost returns false for LAN IP", () => {
+  assert.equal(sandbox.isLocalHttpHost("192.168.1.1"), false);
+});
