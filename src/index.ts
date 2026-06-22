@@ -130,7 +130,7 @@ server.registerTool(
 );
 
 if (config.transport === "http") {
-  runHttpServer(server);
+  await runHttpServer(server);
 } else {
   const transport = new StdioServerTransport();
   await server.connect(transport);

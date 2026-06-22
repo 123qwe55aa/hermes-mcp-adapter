@@ -71,6 +71,7 @@ export const config = {
   hermesMode: (process.env.HERMES_MODE === "http" ? "http" : "local") as HermesMode,
   transport: (process.env.TRANSPORT ?? "stdio") as "stdio" | "http",
   httpPort: intFromEnv("HTTP_PORT", 3000),
+  mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   commandAllowlist: listFromEnv("COMMAND_ALLOWLIST", ["ls", "pwd", "rg", "git", "npm"]),
   npmScriptAllowlist: listFromEnv("NPM_SCRIPT_ALLOWLIST", ["test", "typecheck", "build", "lint"]),
   commandTimeoutMs: intFromEnv("COMMAND_TIMEOUT_MS", 20_000),

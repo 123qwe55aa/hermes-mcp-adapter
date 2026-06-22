@@ -13,6 +13,7 @@ process.env.NPM_SCRIPT_ALLOWLIST = "test,typecheck,build,lint";
 
 const sandbox = await import("./sandbox.js");
 const localFs = await import("./local/fs.js");
+const localShell = await import("./local/shell.js");
 
 test("blocks parent path traversal", () => {
   assert.throws(() => sandbox.resolveWorkspacePath("../outside"), /escapes workspace/);
@@ -76,4 +77,21 @@ test("restricts npm to test and allowlisted run scripts", () => {
 
 test("rejects absolute command arguments", () => {
   assert.throws(() => sandbox.assertSafeCommand("rg secret /etc/passwd"), /escapes workspace policy/);
+});
+
+test("blocks shell cwd symlink escape", async () => {
+  const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-mcp-outside-cwd-"));
+  const linkPath = path.join(workspaceRoot, "escape-link");
+  try {
+    await fs.symlink(outsideDir, linkPath);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EPERM") {
+      return;
+    }
+    throw error;
+  }
+  await assert.rejects(
+    () => localShell.runCommand("ls", "escape-link"),
+    /escapes workspace/
+  );
 });

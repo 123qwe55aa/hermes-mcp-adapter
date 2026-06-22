@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import fs from "node:fs/promises";
 import { config } from "../config.js";
-import { assertSafeCommand, resolveWorkspacePath } from "../sandbox.js";
+import { assertSafeCommand, resolveExistingWorkspacePath } from "../sandbox.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,7 +25,12 @@ export async function runCommand(
   cwdInput = "."
 ): Promise<{ command: string; cwd: string; stdout: string; stderr: string }> {
   const safeCommand = assertSafeCommand(command);
-  const cwd = resolveWorkspacePath(cwdInput);
+  const cwd = await resolveExistingWorkspacePath(cwdInput);
+
+  const cwdStat = await fs.stat(cwd);
+  if (!cwdStat.isDirectory()) {
+    throw new Error(`Not a directory: ${cwdInput}`);
+  }
 
   const result = await execFileAsync(safeCommand.file, safeCommand.args, {
     cwd,

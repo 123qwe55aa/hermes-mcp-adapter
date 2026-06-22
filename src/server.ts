@@ -41,6 +41,17 @@ export async function runHttpServer(server: McpServer): Promise<void> {
 
     // MCP protocol endpoint
     if (url.pathname === "/mcp") {
+      // Require Bearer token when MCP_AUTH_TOKEN is set
+      if (config.mcpAuthToken) {
+        const authHeader = req.headers["authorization"];
+        if (!authHeader || authHeader !== `Bearer ${config.mcpAuthToken}`) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "unauthorized" }));
+          audit("http_auth", { status: "rejected", path: url.pathname });
+          return;
+        }
+      }
+
       try {
         await transport.handleRequest(req, res);
       } catch (error) {
