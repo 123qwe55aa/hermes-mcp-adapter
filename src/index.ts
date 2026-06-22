@@ -10,6 +10,14 @@ import { listDir as listDirLocal, readFile as readFileLocal } from "./local/fs.j
 import { runCommand as runCommandLocal } from "./local/shell.js";
 import { assertSafeCommand, audit, resolveExistingWorkspacePath } from "./sandbox.js";
 
+// Fail-closed gate: HTTP transport must either bind localhost or have an auth token.
+if (config.transport === "http" && !config.mcpAuthToken && config.httpHost !== "127.0.0.1") {
+  throw new Error(
+    "MCP_AUTH_TOKEN is required when TRANSPORT=http and HTTP_HOST is not 127.0.0.1. " +
+    "Set MCP_AUTH_TOKEN to a secret token, or set HTTP_HOST=127.0.0.1 for local-only access."
+  );
+}
+
 function asText(value: unknown, isError = false) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return {
@@ -50,25 +58,19 @@ server.registerTool(
   },
   async () =>
     callTool("health_check", async () => {
-      if (config.hermesMode === "http") {
-        const hermes = await hermesClient.health();
-        return {
-          ok: true,
-          adapter: config.name,
-          mode: config.hermesMode,
-          transport: config.transport,
-          workspaceRoot: config.workspaceRoot,
-          hermes
-        };
-      }
-
-      return {
+      const base = {
         ok: true,
         adapter: config.name,
         mode: config.hermesMode,
-        transport: config.transport,
-        workspaceRoot: config.workspaceRoot
+        transport: config.transport
       };
+
+      if (config.hermesMode === "http") {
+        const hermes = await hermesClient.health();
+        return { ...base, hermes };
+      }
+
+      return { ...base, workspaceRoot: config.workspaceRoot };
     })
 );
 

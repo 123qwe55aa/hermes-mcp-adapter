@@ -68,8 +68,10 @@ WORKSPACE_ROOT=/Users/toby/Documents/Projects
 HERMES_BASE_URL=http://127.0.0.1:9119
 HERMES_HTTP_TIMEOUT_MS=10000
 HERMES_MODE=local
-TRANSPORT=stdio
-HTTP_PORT=3000
+|TRANSPORT=stdio
+|HTTP_PORT=3000
+|HTTP_HOST=127.0.0.1
+|MCP_AUTH_TOKEN=
 MCP_AUTH_TOKEN=
 COMMAND_ALLOWLIST=ls,pwd,rg,git,npm
 NPM_SCRIPT_ALLOWLIST=test,typecheck,build,lint
@@ -79,19 +81,23 @@ MAX_FILE_BYTES=262144
 
 `HERMES_MODE=local` runs filesystem and command tools directly from the adapter.
 
-`HERMES_MODE=http` validates the command and workspace-relative `cwd` locally, then forwards tool calls to Hermes HTTP endpoints. The default endpoint mapping is documented in `src/hermes/client.ts`; adjust it to match your Hermes runtime if needed.
+`HERMES_MODE=http` validates the command allowlist locally and resolves the workspace-relative `cwd` to an absolute path, then forwards the resolved path to Hermes HTTP endpoints. The default endpoint mapping is documented in `src/hermes/client.ts`; adjust it to match your Hermes runtime if needed.
 
 ## HTTP transport (experimental)
 
-Set `TRANSPORT=http` to start an HTTP server for MCP instead of stdio:
+Set `TRANSPORT=http` to start an HTTP server for MCP instead of stdio. By default the server binds `127.0.0.1` so it is only reachable from the local machine:
 
 ```bash
 TRANSPORT=http HTTP_PORT=3000 npm run build && npm run start:http
 ```
 
-The server listens on port `HTTP_PORT` (default 3000) and exposes the MCP protocol at `http://127.0.0.1:3000/mcp`.
+The server exposes the MCP protocol at `http://{HTTP_HOST}:{HTTP_PORT}/mcp`.
 
-When `MCP_AUTH_TOKEN` is set, all `/mcp` requests must include `Authorization: Bearer <token>`. This is strongly recommended before exposing the server to a network or Cloudflare Tunnel.
+When `HTTP_HOST` is not `127.0.0.1` (e.g. `0.0.0.0` or a LAN IP), a `MCP_AUTH_TOKEN` is **required** at startup — the adapter will refuse to start without one. MCP clients must then include `Authorization: Bearer *** on every `/mcp` request.
+
+```bash
+MCP_AUTH_TOKEN=$(openssl rand -hex 32) HTTP_HOST=0.0.0.0 TRANSPORT=http npm run start:http
+```
 
 > **Security:** The HTTP transport is experimental and has no TLS, rate limits, or IP allowlist. Do not expose it directly to the public internet without a reverse proxy (Cloudflare Tunnel with access rules, nginx with auth, etc.) in front of it.
 
