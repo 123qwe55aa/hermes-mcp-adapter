@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
 import { audit, isLocalHttpHost } from "./sandbox.js";
+import { DEFAULT_SESSION_TTL_MS, SessionStore } from "./sessionStore.js";
 
 export async function runHttpServer(createServer: () => McpServer): Promise<void> {
   if (!isLocalHttpHost(config.httpHost) && !config.mcpAuthToken) {
@@ -20,8 +21,18 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
     );
   }
 
-  // Stateful session storage: maps sessionId → transport
-  const transports = new Map<string, StreamableHTTPServerTransport>();
+  const transports = new SessionStore<StreamableHTTPServerTransport>();
+  const cleanupTimer = setInterval(() => {
+    for (const expired of transports.sweepExpired()) {
+      void expired.value.close();
+      audit("mcp_session", {
+        status: "expired",
+        sessionPrefix: expired.id.substring(0, 8),
+        ttlMs: DEFAULT_SESSION_TTL_MS
+      });
+    }
+  }, Math.min(DEFAULT_SESSION_TTL_MS, 60_000));
+  cleanupTimer.unref?.();
 
   async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
     const chunks: Buffer[] = [];
@@ -36,7 +47,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     audit("http_request", { method: req.method, path: url.pathname, host: req.headers.host });
 
-    // CORS headers
     const corsOrigin = config.allowedOrigin || "*";
     res.setHeader("Access-Control-Allow-Origin", corsOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE");
@@ -53,7 +63,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
       return;
     }
 
-    // Health check
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
@@ -67,7 +76,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
       return;
     }
 
-    // MCP endpoint
     if (url.pathname === "/mcp") {
       if (config.mcpAuthToken) {
         const authHeader = req.headers["authorization"];
@@ -79,7 +87,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
         }
       }
 
-      // Read body for POST to determine session routing
       let body: unknown;
       if (req.method === "POST") {
         try {
@@ -93,7 +100,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
 
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-      // Log request details
       audit("mcp_request", {
         method: req.method,
         hasSession: !!sessionId,
@@ -103,12 +109,10 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
       });
 
       try {
-        // POST: initialize or continue session
         if (req.method === "POST") {
           let transport: StreamableHTTPServerTransport | undefined;
 
           if (sessionId) {
-            // Existing session — reuse transport
             transport = transports.get(sessionId);
             if (!transport) {
               res.writeHead(404, { "Content-Type": "application/json" });
@@ -120,11 +124,15 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
               return;
             }
           } else if (isInitializeRequest(body)) {
-            // New initialize request — create transport + server
             transport = new StreamableHTTPServerTransport({
               sessionIdGenerator: () => randomUUID(),
               onsessioninitialized: (newSessionId) => {
                 transports.set(newSessionId, transport!);
+                audit("mcp_session", {
+                  status: "initialized",
+                  sessionPrefix: newSessionId.substring(0, 8),
+                  ttlMs: DEFAULT_SESSION_TTL_MS
+                });
               },
             });
             transport.onclose = () => {
@@ -134,7 +142,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
             const mcpServer = createServer();
             await mcpServer.connect(transport);
           } else {
-            // Non-initialize without session — reject
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({
               jsonrpc: "2.0",
@@ -148,9 +155,9 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
           return;
         }
 
-        // GET / DELETE: require valid session
         if (req.method === "GET" || req.method === "DELETE") {
-          if (!sessionId || !transports.has(sessionId)) {
+          const transport = sessionId ? transports.get(sessionId) : undefined;
+          if (!transport) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({
               jsonrpc: "2.0",
@@ -159,11 +166,10 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
             }));
             return;
           }
-          await transports.get(sessionId)!.handleRequest(req, res);
+          await transport.handleRequest(req, res);
           return;
         }
 
-        // Unsupported method
         res.writeHead(405, { "Content-Type": "application/json" });
         res.end(JSON.stringify({
           jsonrpc: "2.0",
@@ -180,7 +186,6 @@ export async function runHttpServer(createServer: () => McpServer): Promise<void
       return;
     }
 
-    // 404
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: false, error: "not_found" }));
   });

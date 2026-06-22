@@ -37,6 +37,7 @@ This adapter is deny-by-default around dangerous operations:
 - Risky default tools such as `cat`, `node`, `python3`, `grep`, and `pnpm` are not allowlisted by default.
 - Local child processes receive a minimal environment instead of inheriting all parent secrets.
 - Hermes HTTP forwarding uses request timeouts.
+- Streamable HTTP sessions are tracked per `mcp-session-id` and stale sessions are expired automatically.
 - Tool calls are logged to stderr for auditability.
 
 ## Quick start
@@ -73,7 +74,7 @@ HTTP_PORT=3000
 HTTP_HOST=127.0.0.1
 MCP_AUTH_TOKEN=
 ALLOWED_ORIGIN=
-COMM...``
+COMMAND_ALLOWLIST=ls,pwd,rg,git,npm
 NPM_SCRIPT_ALLOWLIST=test,typecheck,build,lint
 COMMAND_TIMEOUT_MS=20000
 MAX_FILE_BYTES=262144
@@ -93,28 +94,48 @@ TRANSPORT=http HTTP_PORT=3000 npm run build && npm run start:http
 
 The server exposes the MCP protocol at `http://{HTTP_HOST}:{HTTP_PORT}/mcp`.
 
-When `HTTP_HOST` is not `127.0.0.1` (e.g. `0.0.0.0` or a LAN IP), a `MCP_AUTH_TOKEN` is **required** at startup — the adapter will refuse to start without one. MCP clients must then include `Authorization: Bearer <token>` on every `/mcp` request.
+When `HTTP_HOST` is not local-only, a `MCP_AUTH_TOKEN` and an `ALLOWED_ORIGIN` are required at startup. MCP clients must then include `Authorization: Bearer <token>` on every `/mcp` request.
 
 ```bash
-MCP_AUTH_TOKEN=$(openssl rand -hex 32) HTTP_HOST=0.0.0.0 TRANSPORT=http npm run start:http
+MCP_AUTH_TOKEN=replace-with-a-long-random-token \
+ALLOWED_ORIGIN=https://chatgpt.com \
+HTTP_HOST=0.0.0.0 \
+TRANSPORT=http \
+npm run start:http
 ```
 
-> **Security:** The HTTP transport is experimental and has no TLS, rate limits, or IP allowlist. Do not expose it directly to the public internet without a reverse proxy (Cloudflare Tunnel with access rules, nginx with auth, etc.) in front of it.
+> **Security:** The HTTP transport is experimental and has no TLS, rate limits, or IP allowlist. Do not expose it directly to the public internet without a reverse proxy or access control layer in front of it.
 
-### MCP client config (HTTP mode)
+### ChatGPT connector through Cloudflare Tunnel
 
-```json
-{
-  "mcpServers": {
-    "hermes-mcp-adapter": {
-      "url": "http://127.0.0.1:3000/mcp",
-      "headers": {
-        "Authorization": "Bearer your-secret-token"
-      }
-    }
-  }
-}
+For ChatGPT connector testing, keep the adapter bound to localhost and let Cloudflare Tunnel provide the public HTTPS URL:
+
+```bash
+TRANSPORT=http \
+HTTP_HOST=127.0.0.1 \
+HTTP_PORT=3000 \
+HERMES_MODE=local \
+MCP_AUTH_TOKEN= \
+ALLOWED_ORIGIN=* \
+npm run start:http
 ```
+
+Point Cloudflare Tunnel to the local HTTP server, not raw TCP:
+
+```yaml
+ingress:
+  - hostname: tcp.tobyleons.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404
+```
+
+Create the ChatGPT connector with the full MCP endpoint:
+
+```text
+https://tcp.tobyleons.com/mcp
+```
+
+Do not use the root URL without `/mcp`. During first connector setup, leave `MCP_AUTH_TOKEN` empty unless you have implemented the OAuth flow expected by your client.
 
 ## Command policy
 
