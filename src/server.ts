@@ -28,12 +28,17 @@ export async function runHttpServer(server: McpServer): Promise<void> {
 
   const httpServer = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    audit("http_request", { method: req.method, path: url.pathname, host: req.headers.host });
 
     // CORS headers for MCP client
     const corsOrigin = config.allowedOrigin || "*";
     res.setHeader("Access-Control-Allow-Origin", corsOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, MCP-Version, Session-Id");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, MCP-Version, Mcp-Session-Id, mcp-session-id, Session-Id");
+
+    res.on("finish", () => {
+      audit("http_response", { method: req.method, path: url.pathname, status: res.statusCode });
+    });
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
