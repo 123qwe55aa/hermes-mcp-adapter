@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isLocalHttpHost } from "./sandbox.js";
+import { isHttpRequestAuthorized } from "./server.js";
 
 describe("HTTP transport fail-closed gate", () => {
   it("rejects non-localhost without auth", () => {
@@ -24,5 +25,15 @@ describe("HTTP transport fail-closed gate", () => {
     // Non-localhost WITH token → should pass
     assert.equal(gate("0.0.0.0", "secret"), false,
       "0.0.0.0 with token should pass");
+  });
+});
+
+describe("HTTP request authentication", () => {
+  it("accepts disabled, Bearer, or query-token authentication and rejects invalid credentials", () => {
+    assert.equal(isHttpRequestAuthorized("", undefined, null), true);
+    assert.equal(isHttpRequestAuthorized("secret", "Bearer secret", null), true);
+    assert.equal(isHttpRequestAuthorized("secret", undefined, "secret"), true);
+    assert.equal(isHttpRequestAuthorized("secret", undefined, null), false);
+    assert.equal(isHttpRequestAuthorized("secret", "Bearer wrong", "wrong"), false);
   });
 });
