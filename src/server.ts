@@ -1,5 +1,5 @@
 import http from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "./config.js";
@@ -7,6 +7,26 @@ import { audit, isLocalHttpHost } from "./sandbox.js";
 import { createMcpServer } from "./mcpServer.js";
 
 const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+export function isHttpRequestAuthorized(
+  expectedToken: string,
+  authorization: string | string[] | undefined,
+  queryToken: string | null,
+): boolean {
+  if (!expectedToken) return true;
+
+  const expected = Buffer.from(expectedToken);
+  const matches = (value: string | undefined): boolean => {
+    if (value === undefined) return false;
+    const actual = Buffer.from(value);
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  };
+  const bearer = typeof authorization === "string" && authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : undefined;
+
+  return matches(bearer) || matches(queryToken ?? undefined);
+}
 
 async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -169,15 +189,16 @@ export async function runHttpServer(): Promise<void> {
         return;
       }
 
-      // Require Bearer token when MCP_AUTH_TOKEN is set
-      if (config.mcpAuthToken) {
-        const authHeader = req.headers["authorization"];
-        if (!authHeader || authHeader !== `Bearer ${config.mcpAuthToken}`) {
-          res.writeHead(401, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: "unauthorized" }));
-          audit("http_auth", { status: "rejected", path: url.pathname });
-          return;
-        }
+      // Require Bearer or query token when MCP_AUTH_TOKEN is set
+      if (!isHttpRequestAuthorized(
+        config.mcpAuthToken,
+        req.headers["authorization"],
+        url.searchParams.get("token"),
+      )) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "unauthorized" }));
+        audit("http_auth", { status: "rejected", path: url.pathname });
+        return;
       }
 
       try {

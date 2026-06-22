@@ -94,7 +94,7 @@ TRANSPORT=http HTTP_PORT=3000 npm run build && npm run start:http
 
 The server exposes the MCP protocol at `http://{HTTP_HOST}:{HTTP_PORT}/mcp`.
 
-When `HTTP_HOST` is not local-only, a `MCP_AUTH_TOKEN` and an `ALLOWED_ORIGIN` are required at startup. MCP clients must then include `Authorization: Bearer <token>` on every `/mcp` request.
+When `HTTP_HOST` is not local-only, a `MCP_AUTH_TOKEN` and an `ALLOWED_ORIGIN` are required at startup. MCP clients can authenticate with `Authorization: Bearer <token>` or `/mcp?token=<token>`.
 
 ```bash
 MCP_AUTH_TOKEN=replace-with-a-long-random-token \
@@ -115,7 +115,7 @@ TRANSPORT=http \
 HTTP_HOST=127.0.0.1 \
 HTTP_PORT=3000 \
 HERMES_MODE=local \
-MCP_AUTH_TOKEN= \
+MCP_AUTH_TOKEN=replace-with-a-long-random-token \
 ALLOWED_ORIGIN=* \
 npm run start:http
 ```
@@ -132,10 +132,10 @@ ingress:
 Create the ChatGPT connector with the full MCP endpoint:
 
 ```text
-https://tcp.tobyleons.com/mcp
+https://tcp.tobyleons.com/mcp?token=replace-with-a-long-random-token
 ```
 
-Do not use the root URL without `/mcp`. During first connector setup, leave `MCP_AUTH_TOKEN` empty unless you have implemented the OAuth flow expected by your client.
+Do not use the root URL without `/mcp`. In the ChatGPT App setup, paste the complete URL and select `No Authentication`. Treat the URL as a secret: do not commit, log, or share it.
 
 ## Command policy
 
